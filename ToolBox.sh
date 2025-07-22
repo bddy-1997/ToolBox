@@ -113,12 +113,43 @@ function open_all_ports() {
     if command -v ufw &> /dev/null; then
         echo -e "${BLUE}检测到 UFW，正在禁用...${NC}"
         ufw disable
+        echo -e "${GREEN}UFW 防火墙已禁用。${NC}"
     elif command -v firewall-cmd &> /dev/null; then
         echo -e "${BLUE}检测到 Firewalld，正在停止并禁用...${NC}"
         systemctl stop firewalld
         systemctl disable firewalld
+        echo -e "${GREEN}Firewalld 防火墙已禁用。${NC}"
     else
-        echo -e "${YELLOW}未检测到 UFW 或 Firewalld，可能没有防火墙在运行。${NC}"
+        echo -e "${YELLOW}未检测到 UFW 或 Firewalld，正在安装适合的防火墙...${NC}"
+        if [[ "$PKG_MANAGER" == "apt-get" ]]; then
+            echo -e "${BLUE}为基于 Debian/Ubuntu 的系统安装 UFW...${NC}"
+            $PKG_MANAGER $UPDATE_CMD
+            $PKG_MANAGER $INSTALL_CMD ufw
+            if command -v ufw &> /dev/null; then
+                echo -e "${BLUE}启用 UFW 防火墙...${NC}"
+                ufw enable
+                echo -e "${GREEN}UFW 防火墙已安装并启用。${NC}"
+                echo -e "${YELLOW}注意：防火墙已启用，建议配置适当的规则以确保服务可访问性。${NC}"
+            else
+                echo -e "${RED}UFW 安装失败，请手动检查包管理器日志。${NC}"
+                return
+            fi
+        elif [[ "$PKG_MANAGER" == "dnf" || "$PKG_MANAGER" == "yum" ]]; then
+            echo -e "${BLUE}为基于 RHEL 的系统安装 Firewalld...${NC}"
+            $PKG_MANAGER $UPDATE_CMD
+            $PKG_MANAGER $INSTALL_CMD firewalld
+            if command -v firewall-cmd &> /dev/null; then
+                echo -e "${BLUE}启用 Firewalld 防火墙...${NC}"
+                systemctl start firewalld
+                systemctl enable firewalld
+                echo -e "${GREEN}Firewalld 防火墙已安装并启用。${NC}"
+                echo -e "${YELLOW}注意：防火墙已启用，建议配置适当的规则以确保服务可访问性。${NC}"
+            else
+                echo -e "${RED}Firewalld 安装失败，请手动检查包管理器日志。${NC}"
+                return
+            fi
+        fi
+        echo -e "${YELLOW}防火墙安装完成，但未禁用。请运行 'ufw disable' 或 'systemctl stop firewalld' 以禁用防火墙。${NC}"
         return
     fi
     echo -e "${GREEN}防火墙已禁用。${NC}"
