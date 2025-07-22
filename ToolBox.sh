@@ -86,12 +86,11 @@ function set_ssh_port() {
         return
     fi
     
-    echo -e "${BLUE}正在将SSH端口修改为 5522...${NC}"
+    echo -e "${BLUE}正在将SSH端口修改为Factor 5522...${NC}"
     sed -i 's/^#*Port .*/Port 5522/' /etc/ssh/sshd_config
     echo -e "${GREEN}SSH配置文件修改完成。${NC}"
     
     echo -e "${BLUE}正在重启SSH服务...${NC}"
-    # 尝试重启sshd服务
     if systemctl restart sshd; then
         echo -e "${GREEN}SSH服务重启成功！${NC}"
         echo -e "${YELLOW}请立即使用新端口 5522 重新连接服务器。例如: ssh user@your_ip -p 5522${NC}"
@@ -214,7 +213,6 @@ EOF
 
 function install_tools() {
     echo -e "${BLUE}开始安装基础工具...${NC}"
-    # btop 可能在老版本系统中需要EPEL源，这里尝试安装
     if [ "$PKG_MANAGER" == "yum" ] || [ "$PKG_MANAGER" == "dnf" ]; then
         $PKG_MANAGER $INSTALL_CMD epel-release
     fi
@@ -227,7 +225,6 @@ function install_tools() {
         curl -fsSL https://get.docker.com -o get-docker.sh
         sh get-docker.sh
         rm get-docker.sh
-        # 将当前用户加入docker组
         if [ -n "$SUDO_USER" ]; then
             usermod -aG docker $SUDO_USER
             echo -e "${YELLOW}已将用户 $SUDO_USER 加入 docker 组，请重新登录以生效。${NC}"
@@ -242,47 +239,193 @@ function install_tools() {
 }
 
 function tune_performance() {
-    echo -e "${BLUE}正在切换到高性能模式...${NC}"
-    
-    cat > /etc/sysctl.d/99-performance.conf << EOF
-#
-# 高性能模式内核参数
-#
-# 文件描述符限制
-fs.file-max = 1000000
-fs.nr_open = 1000000
+    echo -e "${BLUE}请选择优化模式:${NC}"
+    echo -e " ${YELLOW}1.${NC} 高性能优化模式 (最大化性能，优化文件描述符、虚拟内存、网络、缓存、CPU)"
+    echo -e " ${YELLOW}2.${NC} 均衡优化模式 (性能与资源消耗平衡，适合日常使用)"
+    echo -e " ${YELLOW}3.${NC} 网站优化模式 (优化并发连接、响应速度，适合网站服务器)"
+    echo -e " ${YELLOW}4.${NC} 直播优化模式 (优化延迟和传输性能，适合直播推流)"
+    echo -e " ${YELLOW}5.${NC} 游戏服优化模式 (优化并发和响应速度，适合游戏服务器)"
+    echo -e " ${YELLOW}6.${NC} 还原默认设置 (恢复系统默认配置)"
+    echo -e " ${YELLOW}0.${NC} 返回主菜单"
+    read -p "请输入您的选择 [0-6]: " mode_choice
 
-# 网络性能
-net.core.netdev_max_backlog = 32768
-net.core.somaxconn = 65535
+    case $mode_choice in
+        1)
+            echo -e "${BLUE}正在切换到高性能优化模式...${NC}"
+            cat > /etc/sysctl.d/99-performance.conf << EOF
+# 高性能模式内核参数
+fs.file-max = 2097152
+fs.nr_open = 2097152
+vm.swappiness = 10
+vm.dirty_ratio = 15
+vm.dirty_background_ratio = 5
+net.core.netdev_max_backlog = 65536
+net.core.somaxconn = 131072
+net.core.wmem_default = 16777216
+net.core.rmem_default = 16777216
+net.core.rmem_max = 33554432
+net.core.wmem_max = 33554432
+net.ipv4.tcp_max_syn_backlog = 32768
+net.ipv4.tcp_max_tw_buckets = 8000
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_fin_timeout = 15
+net.ipv4.tcp_keepalive_time = 600
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_low_latency = 1
+EOF
+            if ! grep -q "* soft nofile 2097152" /etc/security/limits.conf; then
+                echo "* soft nofile 2097152" >> /etc/security/limits.conf
+                echo "* hard nofile 2097152" >> /etc/security/limits.conf
+            fi
+            sysctl --system > /dev/null 2>&1
+            echo -e "${GREEN}高性能优化模式设置完成！${NC}"
+            echo -e "${YELLOW}部分参数需要重新登录或重启系统才能完全生效。${NC}"
+            ;;
+        2)
+            echo -e "${BLUE}正在切换到均衡优化模式...${NC}"
+            cat > /etc/sysctl.d/99-performance.conf << EOF
+# 均衡优化模式内核参数
+fs.file-max = 524288
+fs.nr_open = 524288
+vm.swappiness = 30
+vm.dirty_ratio = 20
+vm.dirty_background_ratio = 10
+net.core.netdev_max_backlog = 16384
+net.core.somaxconn = 32768
 net.core.wmem_default = 8388608
 net.core.rmem_default = 8388608
 net.core.rmem_max = 16777216
 net.core.wmem_max = 16777216
-
-# TCP 优化
-net.ipv4.tcp_max_syn_backlog = 16384
+net.ipv4.tcp_max_syn_backlog = 8192
 net.ipv4.tcp_max_tw_buckets = 6000
 net.ipv4.tcp_tw_reuse = 1
 net.ipv4.tcp_fin_timeout = 30
 net.ipv4.tcp_keepalive_time = 1200
 net.ipv4.tcp_syncookies = 1
-
-# VM 优化
-vm.swappiness = 10
 EOF
-
-    sysctl --system > /dev/null 2>&1
-    
-    if ! grep -q "* soft nofile 1000000" /etc/security/limits.conf; then
-        echo "* soft nofile 1000000" >> /etc/security/limits.conf
-        echo "* hard nofile 1000000" >> /etc/security/limits.conf
-    fi
-    
-    echo -e "${GREEN}系统已切换到高性能模式！${NC}"
-    echo -e "${YELLOW}部分参数 (如 nofile) 需要重新登录或重启系统才能完全生效。${NC}"
+            if ! grep -q "* soft nofile 524288" /etc/security/limits.conf; then
+                echo "* soft nofile 524288" >> /etc/security/limits.conf
+                echo "* hard nofile 524288" >> /etc/security/limits.conf
+            fi
+            sysctl --system > /dev/null 2>&1
+            echo -e "${GREEN}均衡优化模式设置完成！${NC}"
+            echo -e "${YELLOW}部分参数需要重新登录或重启系统才能完全生效。${NC}"
+            ;;
+        3)
+            echo -e "${BLUE}正在切换到网站优化模式...${NC}"
+            cat > /etc/sysctl.d/99-performance.conf << EOF
+# 网站优化模式内核参数
+fs.file-max = 1048576
+fs.nr_open = 1048576
+vm.swappiness = 20
+vm.dirty_ratio = 15
+vm.dirty_background_ratio = 5
+net.core.netdev_max_backlog = 32768
+net.core.somaxconn = 65536
+net.core.wmem_default = 8388608
+net.core.rmem_default = 8388608
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.ipv4.tcp_max_syn_backlog = 16384
+net.ipv4.tcp_max_tw_buckets = 6000
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_fin_timeout = 20
+net.ipv4.tcp_keepalive_time = 900
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_fastopen = 3
+EOF
+            if ! grep -q "* soft nofile 1048576" /etc/security/limits.conf; then
+                echo "* soft nofile 1048576" >> /etc/security/limits.conf
+                echo "* hard nofile 1048576" >> /etc/security/limits.conf
+            fi
+            sysctl --system > /dev/null 2>&1
+            echo -e "${GREEN}网站优化模式设置完成！${NC}"
+            echo -e "${YELLOW}部分参数需要重新登录或重启系统才能完全生效。${NC}"
+            ;;
+        4)
+            echo -e "${BLUE}正在切换到直播优化模式...${NC}"
+            cat > /etc/sysctl.d/99-performance.conf << EOF
+# 直播优化模式内核参数
+fs.file-max = 524288
+fs.nr_open = 524288
+vm.swappiness = 10
+vm.dirty_ratio = 10
+vm.dirty_background_ratio = 5
+net.core.netdev_max_backlog = 32768
+net.core.somaxconn = 65536
+net.core.wmem_default = 16777216
+net.core.rmem_default = 16777216
+net.core.rmem_max = 33554432
+net.core.wmem_max = 33554432
+net.ipv4.tcp_max_syn_backlog = 16384
+net.ipv4.tcp_max_tw_buckets = 6000
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_fin_timeout = 15
+net.ipv4.tcp_keepalive_time = 600
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_low_latency = 1
+net.ipv4.tcp_congestion_control = bbr
+EOF
+            if ! grep -q "* soft nofile 524288" /etc/security/limits.conf; then
+                echo "* soft nofile 524288" >> /etc/security/limits.conf
+                echo "* hard nofile 524288" >> /etc/security/limits.conf
+            fi
+            sysctl --system > /dev/null 2>&1
+            echo -e "${GREEN}直播优化模式设置完成！${NC}"
+            echo -e "${YELLOW}部分参数需要重新登录或重启系统才能完全生效。${NC}"
+            ;;
+        5)
+            echo -e "${BLUE}正在切换到游戏服优化模式...${NC}"
+            cat > /etc/sysctl.d/99-performance.conf << EOF
+# 游戏服优化模式内核参数
+fs.file-max = 1048576
+fs.nr_open = 1048576
+vm.swappiness = 10
+vm.dirty_ratio = 15
+vm.dirty_background_ratio = 5
+net.core.netdev_max_backlog = 65536
+net.core.somaxconn = 131072
+net.core.wmem_default = 8388608
+net.core.rmem_default = 8388608
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.ipv4.tcp_max_syn_backlog = 32768
+net.ipv4.tcp_max_tw_buckets = 8000
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_fin_timeout = 10
+net.ipv4.tcp_keepalive_time = 600
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_low_latency = 1
+net.ipv4.tcp_congestion_control = bbr
+EOF
+            if ! grep -q "* soft nofile 1048576" /etc/security/limits.conf; then
+                echo "* soft nofile 1048576" >> /etc/security/limits.conf
+                echo "* hard nofile 1048576" >> /etc/security/limits.conf
+            fi
+            sysctl --system > /dev/null 2>&1
+            echo -e "${GREEN}游戏服优化模式设置完成！${NC}"
+            echo -e "${YELLOW}部分参数需要重新登录或重启系统才能完全生效。${NC}"
+            ;;
+        6)
+            echo -e "${BLUE}正在还原系统默认设置...${NC}"
+            rm -f /etc/sysctl.d/99-performance.conf
+            sed -i '/^\* soft nofile/d' /etc/security/limits.conf
+            sed -i '/^\* hard nofile/d' /etc/security/limits.conf
+            sysctl --system > /dev/null 2>&1
+            echo -e "${GREEN}系统设置已还原为默认配置！${NC}"
+            echo -e "${YELLOW}部分参数需要重新登录或重启系统才能完全生效。${NC}"
+            ;;
+        0)
+            echo -e "${BLUE}返回主菜单...${NC}"
+            return
+            ;;
+        *)
+            echo -e "${RED}无效输入，请输入 0-6 之间的数字。${NC}"
+            sleep 2
+            tune_performance
+            ;;
+    esac
 }
-
 
 # --- 主菜单 ---
 function main_menu() {
@@ -295,13 +438,12 @@ function main_menu() {
         echo -e " ${YELLOW}2.${NC} 清理系统垃圾文件     ${YELLOW}7.${NC} 设置时区到上海"
         echo -e " ${YELLOW}3.${NC} 设置虚拟内存1G       ${YELLOW}8.${NC} 优化DNS地址"
         echo -e " ${YELLOW}4.${NC} 设置SSH端口为5522    ${YELLOW}9.${NC} 安装基础工具"
-        echo -e " ${YELLOW}5.${NC} 禁用防火墙(危险!)    ${YELLOW}10.${NC}切换到高性能模式"
+        echo -e " ${YELLOW}5.${NC} 禁用防火墙(危险!)    ${YELLOW}10.${NC}切换到优化模式"
         echo -e ""
         echo -e " ${YELLOW}0.${NC} 退出脚本"
         echo -e "${BLUE}================================================================${NC}"
         read -p "请输入您的选择 [0-10]: " choice
         
-        # 返回主菜单前的等待
         function back_to_menu() {
             read -p "按任意键返回主菜单..."
         }
