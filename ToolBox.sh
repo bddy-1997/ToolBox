@@ -399,7 +399,7 @@ disable_firewall() {
 # 重启服务器
 reboot_system() {
     echo -e "${BLUE}======= 重启服务器 =======${NC}"
-    read -p "确定要重启服务器吗? (y/N): " confirm
+    read -p "确定要重启服务器吗? (Y/N): " confirm
     
     if [[ $confirm =~ ^[Yy]$ ]]; then
         echo -e "${YELLOW}服务器将在5秒后重启...${NC}"
