@@ -14,7 +14,7 @@ NC='\033[0m'
 SSH_PORT=5522
 SWAP_SIZE="1G"
 SYSCTL_CONF="/etc/sysctl.conf"
-# 修正后的 GitHub Raw 地址 (去掉了 refs/heads/)
+# GitHub Raw 地址
 UPDATE_URL="https://raw.githubusercontent.com/bddy-1997/ToolBox/main/ToolBox.sh"
 # 获取当前脚本的绝对路径
 CURRENT_SCRIPT=$(readlink -f "$0")
@@ -25,7 +25,30 @@ check_root() {
     [[ $EUID -ne 0 ]] && echo -e "${RED}错误: 此脚本必须以root权限运行${NC}" && exit 1
 }
 
-# 幂等配置修改：防止配置项重复堆叠
+# 自动安装/修复快捷指令函数 (核心修改点)
+auto_install_shortcut() {
+    # 检查 /usr/bin/q 是否存在，且是否是指向当前脚本的软链接
+    if [[ ! -L "/usr/bin/q" ]] || [[ "$(readlink -f /usr/bin/q)" != "$CURRENT_SCRIPT" ]]; then
+        echo -e "${YELLOW}正在配置快捷指令 'q'...${NC}"
+        
+        # 强制删除旧的 q (无论是什么)
+        rm -f /usr/bin/q
+        
+        # 创建新的软链接
+        ln -s "$CURRENT_SCRIPT" /usr/bin/q
+        chmod +x "$CURRENT_SCRIPT"
+        
+        if [[ -L "/usr/bin/q" ]]; then
+            echo -e "${GREEN}快捷指令安装成功！以后输入 'q' 即可启动本脚本。${NC}"
+            sleep 1
+        else
+            echo -e "${RED}快捷指令安装失败，请检查系统权限。${NC}"
+            sleep 2
+        fi
+    fi
+}
+
+# 幂等配置修改
 set_config() {
     local key=$1
     local value=$2
@@ -47,25 +70,7 @@ pkg_manager_run() {
     fi
 }
 
-# --- 新增功能模块 ---
-
-setup_shortcut() {
-    echo -e "${BLUE}======= 安装快捷指令 (q) =======${NC}"
-    # 删除旧的 q 指令 (如果存在)
-    rm -f /usr/bin/q
-    
-    # 创建软链接
-    ln -s "$CURRENT_SCRIPT" /usr/bin/q
-    chmod +x "$CURRENT_SCRIPT"
-    
-    if [[ -L "/usr/bin/q" ]]; then
-        echo -e "${GREEN}快捷指令 'q' 安装成功！${NC}"
-        echo -e "以后只需输入 ${YELLOW}q${NC} 即可启动本脚本。"
-    else
-        echo -e "${RED}快捷指令安装失败，请检查权限。${NC}"
-    fi
-    read -p "按回车键继续..."
-}
+# --- 新增/维护功能模块 ---
 
 update_script() {
     echo -e "${BLUE}======= 检查并更新脚本 =======${NC}"
@@ -75,10 +80,15 @@ update_script() {
     wget -O /tmp/ToolBox.sh "$UPDATE_URL"
     
     if [[ -s /tmp/ToolBox.sh ]]; then
-        # 检查下载的文件是否包含脚本特征（防止下载到404页面）
+        # 检查下载的文件是否包含脚本特征
         if grep -q "#!/bin/bash" /tmp/ToolBox.sh; then
             mv /tmp/ToolBox.sh "$CURRENT_SCRIPT"
             chmod +x "$CURRENT_SCRIPT"
+            
+            # 更新后自动确保快捷方式也是最新的指向
+            rm -f /usr/bin/q
+            ln -s "$CURRENT_SCRIPT" /usr/bin/q
+            
             echo -e "${GREEN}脚本更新成功！正在重启脚本...${NC}"
             sleep 2
             exec "$CURRENT_SCRIPT"
@@ -112,27 +122,22 @@ show_menu() {
     echo -e "${GREEN}11. 禁用防火墙${NC}"
     echo -e "${GREEN}12. 重启服务器${NC}"
     echo -e "${BLUE}--------------------------------------------${NC}"
-    echo -e "${YELLOW}13. 安装快捷指令 (q)${NC}"
-    echo -e "${YELLOW}14. 在线更新脚本${NC}"
+    echo -e "${YELLOW}13. 在线更新脚本${NC}"  # 原来的14变成了13
     echo -e "${BLUE}============================================${NC}"
     echo -e "${YELLOW}0. 退出${NC}"
-    echo -e "${YELLOW}请输入选项 [0-14]: ${NC}"
+    echo -e "${YELLOW}请输入选项 [0-13]: ${NC}"
 }
 
 system_info() {
     echo -e "${BLUE}======= 系统信息概览 =======${NC}"
     echo "操作系统: $(lsb_release -ds 2>/dev/null || cat /etc/os-release | grep PRETTY_NAME | cut -d'"' -f2)"
     echo "内核版本: $(uname -r)"
-    
-    # 网络信息增强
     local private_ip=$(hostname -I | awk '{print $1}')
     local public_ip=$(curl -s --connect-timeout 2 ipv4.icanhazip.com || echo "无法获取")
     local dns_servers=$(grep nameserver /etc/resolv.conf | awk '{print $2}' | xargs)
     echo "内网 IP:  $private_ip"
     echo "公网 IP:  $public_ip"
     echo "DNS服务器: $dns_servers"
-    
-    # 时区与运行状态
     echo "系统时区: $(timedatectl | grep "Time zone" | awk '{print $3}') ($(date))"
     echo "运行时间: $(uptime -p)"
     echo "内存使用: $(free -h | awk '/^Mem:/ {print $3 "/" $2}')"
@@ -255,6 +260,11 @@ reboot_system() {
 
 main() {
     check_root
+    
+    # === 自动运行: 检查并安装快捷指令 ===
+    auto_install_shortcut
+    # ====================================
+
     while true; do
         show_menu
         read -r choice
@@ -273,8 +283,7 @@ main() {
                 ufw disable &>/dev/null; systemctl stop firewalld &>/dev/null
                 echo -e "${YELLOW}防火墙已禁用${NC}"; sleep 2 ;;
             12) reboot_system ;;
-            13) setup_shortcut ;;
-            14) update_script ;;
+            13) update_script ;; # 菜单项顺延
             0) echo -e "${GREEN}感谢使用！${NC}"; exit 0 ;;
             *) echo -e "${RED}无效选项${NC}"; sleep 2 ;;
         esac
