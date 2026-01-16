@@ -133,7 +133,7 @@ show_menu() {
     echo -e "${YELLOW}13. 在线更新脚本${NC}"
     echo -e "${BLUE}============================================${NC}"
     echo -e "${YELLOW}0. 退出${NC}"
-    echo -e "${YELLOW}请输入选项 [0-13]: ${NC}"
+    printf "${YELLOW}请输入选项 [0-13]: ${NC}"
 }
 
 system_info() {
