@@ -14,6 +14,10 @@ NC='\033[0m'
 SSH_PORT=5522
 SWAP_SIZE="1G"
 SYSCTL_CONF="/etc/sysctl.conf"
+# 修正后的 GitHub Raw 地址 (去掉了 refs/heads/)
+UPDATE_URL="https://raw.githubusercontent.com/bddy-1997/ToolBox/main/ToolBox.sh"
+# 获取当前脚本的绝对路径
+CURRENT_SCRIPT=$(readlink -f "$0")
 
 # --- 核心工具函数 ---
 
@@ -43,7 +47,52 @@ pkg_manager_run() {
     fi
 }
 
-# --- 功能模块 ---
+# --- 新增功能模块 ---
+
+setup_shortcut() {
+    echo -e "${BLUE}======= 安装快捷指令 (q) =======${NC}"
+    # 删除旧的 q 指令 (如果存在)
+    rm -f /usr/bin/q
+    
+    # 创建软链接
+    ln -s "$CURRENT_SCRIPT" /usr/bin/q
+    chmod +x "$CURRENT_SCRIPT"
+    
+    if [[ -L "/usr/bin/q" ]]; then
+        echo -e "${GREEN}快捷指令 'q' 安装成功！${NC}"
+        echo -e "以后只需输入 ${YELLOW}q${NC} 即可启动本脚本。"
+    else
+        echo -e "${RED}快捷指令安装失败，请检查权限。${NC}"
+    fi
+    read -p "按回车键继续..."
+}
+
+update_script() {
+    echo -e "${BLUE}======= 检查并更新脚本 =======${NC}"
+    echo -e "正在从 GitHub 获取最新版本..."
+    
+    # 下载到临时文件
+    wget -O /tmp/ToolBox.sh "$UPDATE_URL"
+    
+    if [[ -s /tmp/ToolBox.sh ]]; then
+        # 检查下载的文件是否包含脚本特征（防止下载到404页面）
+        if grep -q "#!/bin/bash" /tmp/ToolBox.sh; then
+            mv /tmp/ToolBox.sh "$CURRENT_SCRIPT"
+            chmod +x "$CURRENT_SCRIPT"
+            echo -e "${GREEN}脚本更新成功！正在重启脚本...${NC}"
+            sleep 2
+            exec "$CURRENT_SCRIPT"
+        else
+            echo -e "${RED}下载的文件无效，请检查 GitHub 地址是否正确。${NC}"
+            rm -f /tmp/ToolBox.sh
+        fi
+    else
+        echo -e "${RED}下载失败，请检查网络连接。${NC}"
+    fi
+    read -p "按回车键继续..."
+}
+
+# --- 原有功能模块 ---
 
 show_menu() {
     clear
@@ -62,9 +111,12 @@ show_menu() {
     echo -e "${GREEN}10. 设置时区为上海${NC}"
     echo -e "${GREEN}11. 禁用防火墙${NC}"
     echo -e "${GREEN}12. 重启服务器${NC}"
-    echo -e "${YELLOW}0. 退出${NC}"
+    echo -e "${BLUE}--------------------------------------------${NC}"
+    echo -e "${YELLOW}13. 安装快捷指令 (q)${NC}"
+    echo -e "${YELLOW}14. 在线更新脚本${NC}"
     echo -e "${BLUE}============================================${NC}"
-    echo -e "${YELLOW}请输入选项 [0-12]: ${NC}"
+    echo -e "${YELLOW}0. 退出${NC}"
+    echo -e "${YELLOW}请输入选项 [0-14]: ${NC}"
 }
 
 system_info() {
@@ -221,6 +273,8 @@ main() {
                 ufw disable &>/dev/null; systemctl stop firewalld &>/dev/null
                 echo -e "${YELLOW}防火墙已禁用${NC}"; sleep 2 ;;
             12) reboot_system ;;
+            13) setup_shortcut ;;
+            14) update_script ;;
             0) echo -e "${GREEN}感谢使用！${NC}"; exit 0 ;;
             *) echo -e "${RED}无效选项${NC}"; sleep 2 ;;
         esac
