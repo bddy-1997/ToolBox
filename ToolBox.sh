@@ -15,6 +15,7 @@ NC='\033[0m'
 SSH_PORT=5522
 SWAP_SIZE="1G"
 SYSCTL_CONF="/etc/sysctl.conf"
+FIREWALL_TYPE=""  # 自动检测防火墙类型
 # GitHub Raw 地址
 UPDATE_URL="https://raw.githubusercontent.com/bddy-1997/ToolBox/main/ToolBox.sh"
 # 获取当前脚本的绝对路径
@@ -56,6 +57,19 @@ set_config() {
     echo "$key = $value" >> "$file"
 }
 
+# 检测系统使用的防火墙类型
+detect_firewall_type() {
+    if command -v ufw &>/dev/null && systemctl is-active --quiet ufw; then
+        FIREWALL_TYPE="ufw"
+    elif command -v firewall-cmd &>/dev/null && systemctl is-active --quiet firewalld; then
+        FIREWALL_TYPE="firewalld"
+    elif command -v iptables &>/dev/null; then
+        FIREWALL_TYPE="iptables"
+    else
+        FIREWALL_TYPE="none"
+    fi
+}
+
 # 智能包管理器检测与运行
 detect_pkg_manager() {
     if command -v apt &>/dev/null; then
@@ -78,6 +92,72 @@ pkg_manager_run() {
         dnf) dnf "$action" -y "$@" ;;
         yum) yum "$action" -y "$@" ;;
     esac
+}
+
+# 开放所有端口函数
+open_all_ports() {
+    echo -e "${BLUE}======= 开放所有端口 =======${NC}"
+    
+    detect_firewall_type
+    
+    case "$FIREWALL_TYPE" in
+        "ufw")
+            echo -e "${YELLOW}检测到UFW防火墙${NC}"
+            ufw --force reset
+            ufw default allow
+            ufw --force enable
+            echo -e "${GREEN}UFW已设置为默认允许所有连接${NC}"
+            ;;
+        "firewalld")
+            echo -e "${YELLOW}检测到Firewalld防火墙${NC}"
+            firewall-cmd --permanent --add-service=ssh
+            firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="0.0.0.0/0" port protocol="tcp" port="*" accept'
+            firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="0.0.0.0/0" port protocol="udp" port="*" accept'
+            firewall-cmd --reload
+            echo -e "${GREEN}Firewalld已配置允许所有TCP/UDP端口${NC}"
+            ;;
+        "iptables")
+            echo -e "${YELLOW}检测到Iptables防火墙${NC}"
+            iptables -P INPUT ACCEPT
+            iptables -P FORWARD ACCEPT
+            iptables -P OUTPUT ACCEPT
+            iptables -F
+            iptables -X
+            # 保存规则
+            if [[ "$PKG_MANAGER" == "apt" ]]; then
+                # Debian/Ubuntu
+                if command -v iptables-persistent &>/dev/null; then
+                    iptables-save > /etc/iptables/rules.v4
+                fi
+            else
+                # CentOS/RHEL
+                service iptables save 2>/dev/null || echo "无法自动保存iptables规则"
+            fi
+            echo -e "${GREEN}Iptables已配置允许所有连接${NC}"
+            ;;
+        *)
+            echo -e "${YELLOW}未检测到活动的防火墙服务，或者系统未使用常见防火墙${NC}"
+            ;;
+    esac
+    
+    # 显示当前防火墙状态
+    case "$FIREWALL_TYPE" in
+        "ufw")
+            echo -e "\n${BLUE}当前UFW状态:${NC}"
+            ufw status verbose
+            ;;
+        "firewalld")
+            echo -e "\n${BLUE}当前Firewalld区域配置:${NC}"
+            firewall-cmd --list-all
+            ;;
+        "iptables")
+            echo -e "\n${BLUE}当前Iptables规则:${NC}"
+            iptables -L -n -v
+            ;;
+    esac
+    
+    echo -e "\n${YELLOW}警告: 所有端口已开放，这可能带来安全风险！${NC}"
+    read -p "按回车键继续..."
 }
 
 # --- 更新脚本函数 ---
@@ -124,16 +204,15 @@ show_menu() {
     echo -e "${GREEN}5. 设置虚拟内存(1G)${NC}"
     echo -e "${GREEN}6. 优化DNS${NC}"
     echo -e "${GREEN}7. 修改SSH端口(5522)${NC}"
-    echo -e "${GREEN}8. 系统参数调优${NC}"
-    echo -e "${GREEN}9. 安装基础工具${NC}"
-    echo -e "${GREEN}10. 设置时区为上海${NC}"
-    echo -e "${GREEN}11. 禁用防火墙${NC}"
-    echo -e "${GREEN}12. 重启服务器${NC}"
+    echo -e "${GREEN}8. 安装基础工具${NC}"
+    echo -e "${GREEN}9. 设置时区为上海${NC}"
+    echo -e "${GREEN}10. 开放所有端口${NC}"
+    echo -e "${GREEN}11. 重启服务器${NC}"
     echo -e "${BLUE}--------------------------------------------${NC}"
-    echo -e "${YELLOW}13. 在线更新脚本${NC}"
+    echo -e "${YELLOW}12. 在线更新脚本${NC}"
     echo -e "${BLUE}============================================${NC}"
     echo -e "${YELLOW}0. 退出${NC}"
-    printf "${YELLOW}请输入选项 [0-13]: ${NC}"
+    printf "${YELLOW}请输入选项 [0-12]: ${NC}"
 }
 
 system_info() {
@@ -261,24 +340,6 @@ change_ssh_port() {
     read -p "按回车键继续..."
 }
 
-system_tuning() {
-    echo -e "${BLUE}======= 系统参数调优 =======${NC}"
-    echo -e "1) 高性能  2) 游戏  3) 均衡  4) 网站  5) 直播  6) 取消"
-    read -p "请选择模式 [1-6]: " mode_choice
-    local mode=""
-    case $mode_choice in
-        1) set_config "fs.file-max" "1000000" "$SYSCTL_CONF"; mode="高性能" ;;
-        2) set_config "net.ipv4.tcp_low_latency" "1" "$SYSCTL_CONF"; mode="游戏" ;;
-        3) set_config "net.core.netdev_max_backlog" "5000" "$SYSCTL_CONF"; mode="均衡" ;;
-        4) set_config "net.core.somaxconn" "65535" "$SYSCTL_CONF"; mode="网站" ;;
-        5) set_config "net.ipv4.tcp_slow_start_after_idle" "0" "$SYSCTL_CONF"; mode="直播" ;;
-        *) read -p "按回车键继续..."; return ;;
-    esac
-    sysctl -p >/dev/null
-    echo -e "${GREEN}$mode 模式配置完成${NC}"
-    read -p "按回车键继续..."
-}
-
 install_tools() {
     echo -e "${BLUE}======= 安装基础工具 =======${NC}"
     pkg_manager_run install curl wget vim htop git unzip zip tar screen tmux
@@ -293,14 +354,6 @@ set_timezone() {
     else
         echo -e "${RED}时区设置失败，请检查timedatectl命令。${NC}"
     fi
-    read -p "按回车键继续..."
-}
-
-disable_firewall() {
-    ufw disable >/dev/null 2>&1
-    systemctl stop firewalld >/dev/null 2>&1
-    systemctl disable firewalld >/dev/null 2>&1
-    echo -e "${YELLOW}防火墙已禁用${NC}"
     read -p "按回车键继续..."
 }
 
@@ -332,12 +385,11 @@ main() {
             5) setup_swap ;;
             6) optimize_dns ;;
             7) change_ssh_port ;;
-            8) system_tuning ;;
-            9) install_tools ;;
-            10) set_timezone ;;
-            11) disable_firewall ;;
-            12) reboot_system ;;
-            13) update_script ;;
+            8) install_tools ;;
+            9) set_timezone ;;
+            10) open_all_ports ;;
+            11) reboot_system ;;
+            12) update_script ;;
             0) echo -e "${GREEN}感谢使用！${NC}"; exit 0 ;;
             *) echo -e "${RED}无效选项${NC}"; sleep 2 ;;
         esac
