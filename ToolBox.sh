@@ -160,6 +160,289 @@ open_all_ports() {
     read -p "按回车键继续..."
 }
 
+# 内核参数优化主函数
+kernel_parameter_optimization() {
+    echo -e "${BLUE}======= 内核参数优化 =======${NC}"
+    echo -e "${GREEN}请选择优化模式:${NC}"
+    echo -e "${YELLOW}1) 高性能模式${NC}"
+    echo -e "${YELLOW}2) 均衡模式${NC}"
+    echo -e "${YELLOW}3) 网站搭建模式${NC}"
+    echo -e "${YELLOW}4) 还原默认设置${NC}"
+    echo -e "${YELLOW}5) 返回主菜单${NC}"
+    read -p "请输入选项 [1-5]: " opt_choice
+    
+    case $opt_choice in
+        1)
+            optimize_high_performance
+            ;;
+        2)
+            optimize_balanced
+            ;;
+        3)
+            optimize_web_server
+            ;;
+        4)
+            restore_defaults
+            ;;
+        5)
+            return
+            ;;
+        *)
+            echo -e "${RED}无效选项${NC}"
+            sleep 2
+            kernel_parameter_optimization
+            ;;
+    esac
+}
+
+# 高性能模式优化函数
+optimize_high_performance() {
+    echo -e "${BLUE}======= 高性能模式优化 =======${NC}"
+    
+    echo -e "${GREEN}优化文件描述符...${NC}"
+    ulimit -n 65535
+    
+    echo -e "${GREEN}优化虚拟内存...${NC}"
+    sysctl -w vm.swappiness=10 2>/dev/null
+    sysctl -w vm.dirty_ratio=15 2>/dev/null
+    sysctl -w vm.dirty_background_ratio=5 2>/dev/null
+    sysctl -w vm.overcommit_memory=1 2>/dev/null
+    sysctl -w vm.min_free_kbytes=65536 2>/dev/null
+    
+    echo -e "${GREEN}优化网络设置...${NC}"
+    sysctl -w net.core.rmem_max=16777216 2>/dev/null
+    sysctl -w net.core.wmem_max=16777216 2>/dev/null
+    sysctl -w net.core.netdev_max_backlog=250000 2>/dev/null
+    sysctl -w net.core.somaxconn=4096 2>/dev/null
+    sysctl -w net.ipv4.tcp_rmem='4096 87380 16777216' 2>/dev/null
+    sysctl -w net.ipv4.tcp_wmem='4096 65536 16777216' 2>/dev/null
+    sysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null
+    sysctl -w net.ipv4.tcp_max_syn_backlog=8192 2>/dev/null
+    sysctl -w net.ipv4.tcp_tw_reuse=1 2>/dev/null
+    sysctl -w net.ipv4.ip_local_port_range='1024 65535' 2>/dev/null
+    
+    echo -e "${GREEN}优化缓存管理...${NC}"
+    sysctl -w vm.vfs_cache_pressure=50 2>/dev/null
+    
+    echo -e "${GREEN}优化CPU设置...${NC}"
+    sysctl -w kernel.sched_autogroup_enabled=0 2>/dev/null
+    
+    echo -e "${GREEN}其他优化...${NC}"
+    # 禁用透明大页面，减少延迟
+    echo never > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null
+    # 禁用 NUMA balancing
+    sysctl -w kernel.numa_balancing=0 2>/dev/null
+    
+    # 将优化设置永久保存到sysctl.conf
+    set_config "vm.swappiness" "10" "$SYSCTL_CONF"
+    set_config "vm.dirty_ratio" "15" "$SYSCTL_CONF"
+    set_config "vm.dirty_background_ratio" "5" "$SYSCTL_CONF"
+    set_config "vm.overcommit_memory" "1" "$SYSCTL_CONF"
+    set_config "vm.min_free_kbytes" "65536" "$SYSCTL_CONF"
+    set_config "net.core.rmem_max" "16777216" "$SYSCTL_CONF"
+    set_config "net.core.wmem_max" "16777216" "$SYSCTL_CONF"
+    set_config "net.core.netdev_max_backlog" "250000" "$SYSCTL_CONF"
+    set_config "net.core.somaxconn" "4096" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_rmem" "4096 87380 16777216" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_wmem" "4096 65536 16777216" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_congestion_control" "bbr" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_max_syn_backlog" "8192" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_tw_reuse" "1" "$SYSCTL_CONF"
+    set_config "net.ipv4.ip_local_port_range" "1024 65535" "$SYSCTL_CONF"
+    set_config "vm.vfs_cache_pressure" "50" "$SYSCTL_CONF"
+    set_config "kernel.sched_autogroup_enabled" "0" "$SYSCTL_CONF"
+    set_config "kernel.numa_balancing" "0" "$SYSCTL_CONF"
+    
+    echo -e "${GREEN}高性能模式优化完成${NC}"
+    read -p "按回车键继续..."
+}
+
+# 均衡模式优化函数
+optimize_balanced() {
+    echo -e "${BLUE}======= 均衡模式优化 =======${NC}"
+    
+    echo -e "${GREEN}优化文件描述符...${NC}"
+    ulimit -n 32768
+    
+    echo -e "${GREEN}优化虚拟内存...${NC}"
+    sysctl -w vm.swappiness=30 2>/dev/null
+    sysctl -w vm.dirty_ratio=20 2>/dev/null
+    sysctl -w vm.dirty_background_ratio=10 2>/dev/null
+    sysctl -w vm.overcommit_memory=0 2>/dev/null
+    sysctl -w vm.min_free_kbytes=32768 2>/dev/null
+    
+    echo -e "${GREEN}优化网络设置...${NC}"
+    sysctl -w net.core.rmem_max=8388608 2>/dev/null
+    sysctl -w net.core.wmem_max=8388608 2>/dev/null
+    sysctl -w net.core.netdev_max_backlog=125000 2>/dev/null
+    sysctl -w net.core.somaxconn=2048 2>/dev/null
+    sysctl -w net.ipv4.tcp_rmem='4096 87380 8388608' 2>/dev/null
+    sysctl -w net.ipv4.tcp_wmem='4096 32768 8388608' 2>/dev/null
+    sysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null
+    sysctl -w net.ipv4.tcp_max_syn_backlog=4096 2>/dev/null
+    sysctl -w net.ipv4.tcp_tw_reuse=1 2>/dev/null
+    sysctl -w net.ipv4.ip_local_port_range='1024 49151' 2>/dev/null
+    
+    echo -e "${GREEN}优化缓存管理...${NC}"
+    sysctl -w vm.vfs_cache_pressure=75 2>/dev/null
+    
+    echo -e "${GREEN}优化CPU设置...${NC}"
+    sysctl -w kernel.sched_autogroup_enabled=1 2>/dev/null
+    
+    echo -e "${GREEN}其他优化...${NC}"
+    # 还原透明大页面
+    echo always > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null
+    # 还原 NUMA balancing
+    sysctl -w kernel.numa_balancing=1 2>/dev/null
+    
+    # 将优化设置永久保存到sysctl.conf
+    set_config "vm.swappiness" "30" "$SYSCTL_CONF"
+    set_config "vm.dirty_ratio" "20" "$SYSCTL_CONF"
+    set_config "vm.dirty_background_ratio" "10" "$SYSCTL_CONF"
+    set_config "vm.overcommit_memory" "0" "$SYSCTL_CONF"
+    set_config "vm.min_free_kbytes" "32768" "$SYSCTL_CONF"
+    set_config "net.core.rmem_max" "8388608" "$SYSCTL_CONF"
+    set_config "net.core.wmem_max" "8388608" "$SYSCTL_CONF"
+    set_config "net.core.netdev_max_backlog" "125000" "$SYSCTL_CONF"
+    set_config "net.core.somaxconn" "2048" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_rmem" "4096 87380 8388608" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_wmem" "4096 32768 8388608" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_congestion_control" "bbr" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_max_syn_backlog" "4096" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_tw_reuse" "1" "$SYSCTL_CONF"
+    set_config "net.ipv4.ip_local_port_range" "1024 49151" "$SYSCTL_CONF"
+    set_config "vm.vfs_cache_pressure" "75" "$SYSCTL_CONF"
+    set_config "kernel.sched_autogroup_enabled" "1" "$SYSCTL_CONF"
+    set_config "kernel.numa_balancing" "1" "$SYSCTL_CONF"
+    
+    echo -e "${GREEN}均衡模式优化完成${NC}"
+    read -p "按回车键继续..."
+}
+
+# 还原默认设置函数
+restore_defaults() {
+    echo -e "${BLUE}======= 还原到默认设置 =======${NC}"
+    
+    echo -e "${GREEN}还原文件描述符...${NC}"
+    ulimit -n 1024
+    
+    echo -e "${GREEN}还原虚拟内存...${NC}"
+    sysctl -w vm.swappiness=60 2>/dev/null
+    sysctl -w vm.dirty_ratio=20 2>/dev/null
+    sysctl -w vm.dirty_background_ratio=10 2>/dev/null
+    sysctl -w vm.overcommit_memory=0 2>/dev/null
+    sysctl -w vm.min_free_kbytes=16384 2>/dev/null
+    
+    echo -e "${GREEN}还原网络设置...${NC}"
+    sysctl -w net.core.rmem_max=212992 2>/dev/null
+    sysctl -w net.core.wmem_max=212992 2>/dev/null
+    sysctl -w net.core.netdev_max_backlog=1000 2>/dev/null
+    sysctl -w net.core.somaxconn=128 2>/dev/null
+    sysctl -w net.ipv4.tcp_rmem='4096 87380 6291456' 2>/dev/null
+    sysctl -w net.ipv4.tcp_wmem='4096 16384 4194304' 2>/dev/null
+    sysctl -w net.ipv4.tcp_congestion_control=cubic 2>/dev/null
+    sysctl -w net.ipv4.tcp_max_syn_backlog=2048 2>/dev/null
+    sysctl -w net.ipv4.tcp_tw_reuse=0 2>/dev/null
+    sysctl -w net.ipv4.ip_local_port_range='32768 60999' 2>/dev/null
+    
+    echo -e "${GREEN}还原缓存管理...${NC}"
+    sysctl -w vm.vfs_cache_pressure=100 2>/dev/null
+    
+    echo -e "${GREEN}还原CPU设置...${NC}"
+    sysctl -w kernel.sched_autogroup_enabled=1 2>/dev/null
+    
+    echo -e "${GREEN}还原其他优化...${NC}"
+    # 还原透明大页面
+    echo always > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null
+    # 还原 NUMA balancing
+    sysctl -w kernel.numa_balancing=1 2>/dev/null
+    
+    # 将默认设置永久保存到sysctl.conf
+    set_config "vm.swappiness" "60" "$SYSCTL_CONF"
+    set_config "vm.dirty_ratio" "20" "$SYSCTL_CONF"
+    set_config "vm.dirty_background_ratio" "10" "$SYSCTL_CONF"
+    set_config "vm.overcommit_memory" "0" "$SYSCTL_CONF"
+    set_config "vm.min_free_kbytes" "16384" "$SYSCTL_CONF"
+    set_config "net.core.rmem_max" "212992" "$SYSCTL_CONF"
+    set_config "net.core.wmem_max" "212992" "$SYSCTL_CONF"
+    set_config "net.core.netdev_max_backlog" "1000" "$SYSCTL_CONF"
+    set_config "net.core.somaxconn" "128" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_rmem" "4096 87380 6291456" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_wmem" "4096 16384 4194304" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_congestion_control" "cubic" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_max_syn_backlog" "2048" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_tw_reuse" "0" "$SYSCTL_CONF"
+    set_config "net.ipv4.ip_local_port_range" "32768 60999" "$SYSCTL_CONF"
+    set_config "vm.vfs_cache_pressure" "100" "$SYSCTL_CONF"
+    set_config "kernel.sched_autogroup_enabled" "1" "$SYSCTL_CONF"
+    set_config "kernel.numa_balancing" "1" "$SYSCTL_CONF"
+    
+    echo -e "${GREEN}还原默认设置完成${NC}"
+    read -p "按回车键继续..."
+}
+
+# 网站搭建优化函数
+optimize_web_server() {
+    echo -e "${BLUE}======= 网站搭建优化模式 =======${NC}"
+    
+    echo -e "${GREEN}优化文件描述符...${NC}"
+    ulimit -n 65535
+    
+    echo -e "${GREEN}优化虚拟内存...${NC}"
+    sysctl -w vm.swappiness=10 2>/dev/null
+    sysctl -w vm.dirty_ratio=20 2>/dev/null
+    sysctl -w vm.dirty_background_ratio=10 2>/dev/null
+    sysctl -w vm.overcommit_memory=1 2>/dev/null
+    sysctl -w vm.min_free_kbytes=65536 2>/dev/null
+    
+    echo -e "${GREEN}优化网络设置...${NC}"
+    sysctl -w net.core.rmem_max=16777216 2>/dev/null
+    sysctl -w net.core.wmem_max=16777216 2>/dev/null
+    sysctl -w net.core.netdev_max_backlog=5000 2>/dev/null
+    sysctl -w net.core.somaxconn=4096 2>/dev/null
+    sysctl -w net.ipv4.tcp_rmem='4096 87380 16777216' 2>/dev/null
+    sysctl -w net.ipv4.tcp_wmem='4096 65536 16777216' 2>/dev/null
+    sysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null
+    sysctl -w net.ipv4.tcp_max_syn_backlog=8192 2>/dev/null
+    sysctl -w net.ipv4.tcp_tw_reuse=1 2>/dev/null
+    sysctl -w net.ipv4.ip_local_port_range='1024 65535' 2>/dev/null
+    
+    echo -e "${GREEN}优化缓存管理...${NC}"
+    sysctl -w vm.vfs_cache_pressure=50 2>/dev/null
+    
+    echo -e "${GREEN}优化CPU设置...${NC}"
+    sysctl -w kernel.sched_autogroup_enabled=0 2>/dev/null
+    
+    echo -e "${GREEN}其他优化...${NC}"
+    # 禁用透明大页面，减少延迟
+    echo never > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null
+    # 禁用 NUMA balancing
+    sysctl -w kernel.numa_balancing=0 2>/dev/null
+    
+    # 将优化设置永久保存到sysctl.conf
+    set_config "vm.swappiness" "10" "$SYSCTL_CONF"
+    set_config "vm.dirty_ratio" "20" "$SYSCTL_CONF"
+    set_config "vm.dirty_background_ratio" "10" "$SYSCTL_CONF"
+    set_config "vm.overcommit_memory" "1" "$SYSCTL_CONF"
+    set_config "vm.min_free_kbytes" "65536" "$SYSCTL_CONF"
+    set_config "net.core.rmem_max" "16777216" "$SYSCTL_CONF"
+    set_config "net.core.wmem_max" "16777216" "$SYSCTL_CONF"
+    set_config "net.core.netdev_max_backlog" "5000" "$SYSCTL_CONF"
+    set_config "net.core.somaxconn" "4096" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_rmem" "4096 87380 16777216" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_wmem" "4096 65536 16777216" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_congestion_control" "bbr" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_max_syn_backlog" "8192" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_tw_reuse" "1" "$SYSCTL_CONF"
+    set_config "net.ipv4.ip_local_port_range" "1024 65535" "$SYSCTL_CONF"
+    set_config "vm.vfs_cache_pressure" "50" "$SYSCTL_CONF"
+    set_config "kernel.sched_autogroup_enabled" "0" "$SYSCTL_CONF"
+    set_config "kernel.numa_balancing" "0" "$SYSCTL_CONF"
+    
+    echo -e "${GREEN}网站搭建优化模式完成${NC}"
+    read -p "按回车键继续..."
+}
+
 # --- 更新脚本函数 ---
 
 update_script() {
@@ -207,12 +490,13 @@ show_menu() {
     echo -e "${GREEN}8. 安装基础工具${NC}"
     echo -e "${GREEN}9. 设置时区为上海${NC}"
     echo -e "${GREEN}10. 开放所有端口${NC}"
-    echo -e "${GREEN}11. 重启服务器${NC}"
+    echo -e "${GREEN}11. 内核参数优化${NC}"
+    echo -e "${GREEN}12. 重启服务器${NC}"
     echo -e "${BLUE}--------------------------------------------${NC}"
-    echo -e "${YELLOW}12. 在线更新脚本${NC}"
+    echo -e "${YELLOW}13. 在线更新脚本${NC}"
     echo -e "${BLUE}============================================${NC}"
     echo -e "${YELLOW}0. 退出${NC}"
-    printf "${YELLOW}请输入选项 [0-12]: ${NC}"
+    printf "${YELLOW}请输入选项 [0-13]: ${NC}"
 }
 
 system_info() {
@@ -388,8 +672,9 @@ main() {
             8) install_tools ;;
             9) set_timezone ;;
             10) open_all_ports ;;
-            11) reboot_system ;;
-            12) update_script ;;
+            11) kernel_parameter_optimization ;;
+            12) reboot_system ;;
+            13) update_script ;;
             0) echo -e "${GREEN}感谢使用！${NC}"; exit 0 ;;
             *) echo -e "${RED}无效选项${NC}"; sleep 2 ;;
         esac
