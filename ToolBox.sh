@@ -316,7 +316,6 @@ optimize_balanced() {
     set_config "kernel.numa_balancing" "1" "$SYSCTL_CONF"
     
     echo -e "${GREEN}均衡模式优化完成${NC}"
-    read -p "按回车键继续..."
 }
 
 # 还原默认设置函数
@@ -463,28 +462,174 @@ one_click_optimization() {
     fi
     
     echo -e "${BLUE}执行系统更新...${NC}"
-    system_update
+    system_update_auto
     
     echo -e "${BLUE}执行系统清理...${NC}"
-    system_clean
+    system_clean_auto
     
     echo -e "${BLUE}执行BBR加速优化...${NC}"
-    enable_bbr
+    enable_bbr_auto
     
     echo -e "${BLUE}设置虚拟内存...${NC}"
-    setup_swap
+    setup_swap_auto
     
     echo -e "${BLUE}修改SSH端口...${NC}"
-    change_ssh_port
+    change_ssh_port_auto
     
     echo -e "${BLUE}安装基础工具...${NC}"
-    install_tools
+    install_tools_auto
     
     echo -e "${BLUE}应用内核参数均衡模式优化...${NC}"
-    optimize_balanced
+    optimize_balanced_auto
     
     echo -e "${GREEN}======= 一键优化完成 =======${NC}"
     read -p "按回车键继续..."
+}
+
+# 自动化版本的系统更新函数（无暂停）
+system_update_auto() {
+    echo -e "${BLUE}======= 系统更新 =======${NC}"
+    pkg_manager_run update
+    pkg_manager_run upgrade
+    echo -e "${GREEN}系统更新完成${NC}"
+}
+
+# 自动化版本的系统清理函数（无暂停）
+system_clean_auto() {
+    echo -e "${BLUE}======= 系统清理 =======${NC}"
+    pkg_manager_run autoremove
+    case "$PKG_MANAGER" in
+        apt) apt clean ;;
+        *) yum clean all || dnf clean all ;;
+    esac
+    journalctl --vacuum-time=7d 2>/dev/null
+    find /tmp -type f -mtime +7 -delete 2>/dev/null
+    echo -e "${GREEN}系统清理完成${NC}"
+}
+
+# 自动化版本的BBR加速优化函数（无暂停）
+enable_bbr_auto() {
+    echo -e "${BLUE}======= BBR加速优化 =======${NC}"
+    if lsmod | grep -q bbr; then
+        echo -e "${YELLOW}BBR已启用，无需重复操作。${NC}"
+        return
+    fi
+    set_config "net.core.default_qdisc" "fq" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_congestion_control" "bbr" "$SYSCTL_CONF"
+    sysctl -p >/dev/null
+    if sysctl net.ipv4.tcp_congestion_control | grep -q "bbr"; then
+        echo -e "${GREEN}BBR加速已成功启用${NC}"
+    else
+        echo -e "${RED}BBR加速启用失败，请检查内核是否支持BBR。${NC}"
+    fi
+}
+
+# 自动化版本的设置虚拟内存函数（无暂停）
+setup_swap_auto() {
+    echo -e "${BLUE}======= 设置虚拟内存 =======${NC}"
+    if swapon --show | grep -q '/swapfile'; then
+        echo -e "${YELLOW}警告: 已经存在/swapfile交换文件${NC}"
+        swapoff -a
+        rm -f /swapfile
+    fi
+    fallocate -l $SWAP_SIZE /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=1024 conv=notrunc
+    chmod 600 /swapfile
+    mkswap /swapfile && swapon /swapfile
+    grep -q "/swapfile" /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    set_config "vm.swappiness" "10" "$SYSCTL_CONF"
+    sysctl -p >/dev/null
+    echo -e "${GREEN}1G虚拟内存设置完成${NC}"
+}
+
+# 自动化版本的修改SSH端口函数（无暂停）
+change_ssh_port_auto() {
+    echo -e "${BLUE}======= 修改SSH端口 =======${NC}"
+    if [[ ! -f /etc/ssh/sshd_config ]]; then
+        echo -e "${RED}SSH配置不存在${NC}"
+        return
+    fi
+    if ss -tuln | grep -q ":$SSH_PORT "; then
+        echo -e "${RED}错误: 端口 $SSH_PORT 已被占用${NC}"
+        return
+    fi
+    if [[ ! -f /etc/ssh/sshd_config.bak ]]; then
+        cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+    fi
+    sed -i "s/^#\?Port .*/Port $SSH_PORT/" /etc/ssh/sshd_config
+    systemctl restart sshd 2>/dev/null || service ssh restart 2>/dev/null
+    if [[ $? -eq 0 ]]; then
+        echo -e "${GREEN}SSH端口已修改为 $SSH_PORT${NC}"
+    else
+        echo -e "${RED}SSH重启失败，请检查配置。${NC}"
+    fi
+}
+
+# 自动化版本的安装基础工具函数（无暂停）
+install_tools_auto() {
+    echo -e "${BLUE}======= 安装基础工具 =======${NC}"
+    pkg_manager_run install curl wget vim htop git unzip zip tar screen tmux
+    echo -e "${GREEN}基础工具安装完成${NC}"
+}
+
+# 自动化版本的均衡模式优化函数（无暂停）
+optimize_balanced_auto() {
+    echo -e "${BLUE}======= 均衡模式优化 =======${NC}"
+    
+    echo -e "${GREEN}优化文件描述符...${NC}"
+    ulimit -n 32768
+    
+    echo -e "${GREEN}优化虚拟内存...${NC}"
+    sysctl -w vm.swappiness=30 2>/dev/null
+    sysctl -w vm.dirty_ratio=20 2>/dev/null
+    sysctl -w vm.dirty_background_ratio=10 2>/dev/null
+    sysctl -w vm.overcommit_memory=0 2>/dev/null
+    sysctl -w vm.min_free_kbytes=32768 2>/dev/null
+    
+    echo -e "${GREEN}优化网络设置...${NC}"
+    sysctl -w net.core.rmem_max=8388608 2>/dev/null
+    sysctl -w net.core.wmem_max=8388608 2>/dev/null
+    sysctl -w net.core.netdev_max_backlog=125000 2>/dev/null
+    sysctl -w net.core.somaxconn=2048 2>/dev/null
+    sysctl -w net.ipv4.tcp_rmem='4096 87380 8388608' 2>/dev/null
+    sysctl -w net.ipv4.tcp_wmem='4096 32768 8388608' 2>/dev/null
+    sysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null
+    sysctl -w net.ipv4.tcp_max_syn_backlog=4096 2>/dev/null
+    sysctl -w net.ipv4.tcp_tw_reuse=1 2>/dev/null
+    sysctl -w net.ipv4.ip_local_port_range='1024 49151' 2>/dev/null
+    
+    echo -e "${GREEN}优化缓存管理...${NC}"
+    sysctl -w vm.vfs_cache_pressure=75 2>/dev/null
+    
+    echo -e "${GREEN}优化CPU设置...${NC}"
+    sysctl -w kernel.sched_autogroup_enabled=1 2>/dev/null
+    
+    echo -e "${GREEN}其他优化...${NC}"
+    # 还原透明大页面
+    echo always > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null
+    # 还原 NUMA balancing
+    sysctl -w kernel.numa_balancing=1 2>/dev/null
+    
+    # 将优化设置永久保存到sysctl.conf
+    set_config "vm.swappiness" "30" "$SYSCTL_CONF"
+    set_config "vm.dirty_ratio" "20" "$SYSCTL_CONF"
+    set_config "vm.dirty_background_ratio" "10" "$SYSCTL_CONF"
+    set_config "vm.overcommit_memory" "0" "$SYSCTL_CONF"
+    set_config "vm.min_free_kbytes" "32768" "$SYSCTL_CONF"
+    set_config "net.core.rmem_max" "8388608" "$SYSCTL_CONF"
+    set_config "net.core.wmem_max" "8388608" "$SYSCTL_CONF"
+    set_config "net.core.netdev_max_backlog" "125000" "$SYSCTL_CONF"
+    set_config "net.core.somaxconn" "2048" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_rmem" "4096 87380 8388608" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_wmem" "4096 32768 8388608" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_congestion_control" "bbr" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_max_syn_backlog" "4096" "$SYSCTL_CONF"
+    set_config "net.ipv4.tcp_tw_reuse" "1" "$SYSCTL_CONF"
+    set_config "net.ipv4.ip_local_port_range" "1024 49151" "$SYSCTL_CONF"
+    set_config "vm.vfs_cache_pressure" "75" "$SYSCTL_CONF"
+    set_config "kernel.sched_autogroup_enabled" "1" "$SYSCTL_CONF"
+    set_config "kernel.numa_balancing" "1" "$SYSCTL_CONF"
+    
+    echo -e "${GREEN}均衡模式优化完成${NC}"
 }
 
 # --- 更新脚本函数 ---
