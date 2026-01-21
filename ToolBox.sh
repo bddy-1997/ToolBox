@@ -443,6 +443,50 @@ optimize_web_server() {
     read -p "按回车键继续..."
 }
 
+# 一键优化函数
+one_click_optimization() {
+    echo -e "${BLUE}======= 一键优化开始 =======${NC}"
+    echo -e "${YELLOW}即将执行以下操作:${NC}"
+    echo -e "${YELLOW}1. 系统更新 (选项2)${NC}"
+    echo -e "${YELLOW}2. 系统清理 (选项3)${NC}"
+    echo -e "${YELLOW}3. BBR加速优化 (选项4)${NC}"
+    echo -e "${YELLOW}4. 设置虚拟内存 (选项5)${NC}"
+    echo -e "${YELLOW}5. 修改SSH端口 (选项7)${NC}"
+    echo -e "${YELLOW}6. 安装基础工具 (选项8)${NC}"
+    echo -e "${YELLOW}7. 内核参数优化 - 均衡模式 (选项11中的均衡模式)${NC}"
+    
+    read -p "确认执行一键优化? (Y/N): " confirm
+    if [[ ! $confirm =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}取消一键优化${NC}"
+        read -p "按回车键继续..."
+        return
+    fi
+    
+    echo -e "${BLUE}执行系统更新...${NC}"
+    system_update
+    
+    echo -e "${BLUE}执行系统清理...${NC}"
+    system_clean
+    
+    echo -e "${BLUE}执行BBR加速优化...${NC}"
+    enable_bbr
+    
+    echo -e "${BLUE}设置虚拟内存...${NC}"
+    setup_swap
+    
+    echo -e "${BLUE}修改SSH端口...${NC}"
+    change_ssh_port
+    
+    echo -e "${BLUE}安装基础工具...${NC}"
+    install_tools
+    
+    echo -e "${BLUE}应用内核参数均衡模式优化...${NC}"
+    optimize_balanced
+    
+    echo -e "${GREEN}======= 一键优化完成 =======${NC}"
+    read -p "按回车键继续..."
+}
+
 # --- 更新脚本函数 ---
 
 update_script() {
@@ -481,22 +525,23 @@ show_menu() {
     echo -e "${BLUE}      Linux系统一键配置脚本${NC}"
     echo -e "${BLUE}============================================${NC}"
     echo -e "${GREEN}1. 系统信息概览${NC}"
-    echo -e "${GREEN}2. 系统更新${NC}"
-    echo -e "${GREEN}3. 系统清理${NC}"
-    echo -e "${GREEN}4. BBR加速优化${NC}"
-    echo -e "${GREEN}5. 设置虚拟内存(1G)${NC}"
-    echo -e "${GREEN}6. 优化DNS${NC}"
-    echo -e "${GREEN}7. 修改SSH端口(5522)${NC}"
-    echo -e "${GREEN}8. 安装基础工具${NC}"
-    echo -e "${GREEN}9. 设置时区为上海${NC}"
-    echo -e "${GREEN}10. 开放所有端口${NC}"
-    echo -e "${GREEN}11. 内核参数优化${NC}"
-    echo -e "${GREEN}12. 重启服务器${NC}"
+    echo -e "${GREEN}2. 一键优化${NC}"
+    echo -e "${GREEN}3. 系统更新${NC}"
+    echo -e "${GREEN}4. 系统清理${NC}"
+    echo -e "${GREEN}5. BBR加速优化${NC}"
+    echo -e "${GREEN}6. 设置虚拟内存(1G)${NC}"
+    echo -e "${GREEN}7. 优化DNS${NC}"
+    echo -e "${GREEN}8. 修改SSH端口(5522)${NC}"
+    echo -e "${GREEN}9. 安装基础工具${NC}"
+    echo -e "${GREEN}10. 设置时区为上海${NC}"
+    echo -e "${GREEN}11. 开放所有端口${NC}"
+    echo -e "${GREEN}12. 内核参数优化${NC}"
+    echo -e "${GREEN}13. 重启服务器${NC}"
     echo -e "${BLUE}--------------------------------------------${NC}"
-    echo -e "${YELLOW}13. 在线更新脚本${NC}"
+    echo -e "${YELLOW}14. 在线更新脚本${NC}"
     echo -e "${BLUE}============================================${NC}"
     echo -e "${YELLOW}0. 退出${NC}"
-    printf "${YELLOW}请输入选项 [0-13]: ${NC}"
+    printf "${YELLOW}请输入选项 [0-14]: ${NC}"
 }
 
 system_info() {
@@ -663,18 +708,19 @@ main() {
         read -r choice
         case $choice in
             1) system_info ;;
-            2) system_update ;;
-            3) system_clean ;;
-            4) enable_bbr ;;
-            5) setup_swap ;;
-            6) optimize_dns ;;
-            7) change_ssh_port ;;
-            8) install_tools ;;
-            9) set_timezone ;;
-            10) open_all_ports ;;
-            11) kernel_parameter_optimization ;;
-            12) reboot_system ;;
-            13) update_script ;;
+            2) one_click_optimization ;;
+            3) system_update ;;
+            4) system_clean ;;
+            5) enable_bbr ;;
+            6) setup_swap ;;
+            7) optimize_dns ;;
+            8) change_ssh_port ;;
+            9) install_tools ;;
+            10) set_timezone ;;
+            11) open_all_ports ;;
+            12) kernel_parameter_optimization ;;
+            13) reboot_system ;;
+            14) update_script ;;
             0) echo -e "${GREEN}感谢使用！${NC}"; exit 0 ;;
             *) echo -e "${RED}无效选项${NC}"; sleep 2 ;;
         esac
