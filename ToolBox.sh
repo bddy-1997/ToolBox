@@ -316,6 +316,7 @@ optimize_balanced() {
     set_config "kernel.numa_balancing" "1" "$SYSCTL_CONF"
     
     echo -e "${GREEN}均衡模式优化完成${NC}"
+    read -p "按回车键继续..."
 }
 
 # 还原默认设置函数
